@@ -6,7 +6,6 @@ import {
   Patch,
   Param,
   Delete,
-  NotFoundException,
   ParseIntPipe,
 } from '@nestjs/common';
 import { ArticlesService } from './articles.service';
@@ -22,44 +21,57 @@ export class ArticlesController {
 
   @Post()
   @ApiCreatedResponse({ type: ArticleEntity })
-  create(@Body() createArticleDto: CreateArticleDto) {
-    return this.articlesService.create(createArticleDto);
+  async create(@Body() createArticleDto: CreateArticleDto) {
+    return new ArticleEntity(
+      await this.articlesService.create(createArticleDto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: ArticleEntity, isArray: true })
-  findAll() {
-    return this.articlesService.findAll();
+  async findAll() {
+    const articles = await this.articlesService.findAll();
+    return articles.map((article) => new ArticleEntity(article));
   }
 
   @Get('drafts')
   @ApiOkResponse({ type: ArticleEntity, isArray: true })
-  findDrafts() {
-    return this.articlesService.findDrafts();
+  async findDrafts() {
+    const drafts = await this.articlesService.findDrafts();
+    return drafts.map((draft) => new ArticleEntity(draft));
   }
 
   @Get(':id')
   @ApiOkResponse({ type: ArticleEntity })
-  async findOne(@Param('id') id: string) {
-    const article = await this.articlesService.findOne(+id);
-    if (!article) {
-      throw new NotFoundException(`Article with ${id} does not exist.`);
-    }
-    return article;
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return new ArticleEntity(await this.articlesService.findOne(id));
   }
 
   @Patch(':id')
-  @ApiCreatedResponse({ type: ArticleEntity })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateArticleDto: UpdateArticleDto,
-  ) {
-    return this.articlesService.update(id, updateArticleDto);
+@ApiCreatedResponse({ type: ArticleEntity })
+async update(
+  @Param('id', ParseIntPipe) id: number,
+  @Body() updateArticleDto: UpdateArticleDto | string,
+) {
+  // Check if updateArticleDto is a string
+  if (typeof updateArticleDto === 'string') {
+    // Handle the case where updateArticleDto is a string (e.g., return a response indicating invalid data)
+    return { message: 'Invalid data format. Expected JSON object.' };
   }
+
+  // Proceed with the normal update process if updateArticleDto is an object
+  const updatedArticle = await this.articlesService.update(id, updateArticleDto);
+  if (typeof updatedArticle === 'string') {
+    // Handle the case where articlesService.update returns a string (e.g., return a response indicating an error)
+    return { message: updatedArticle };
+  }
+
+  return new ArticleEntity(updatedArticle);
+}
 
   @Delete(':id')
   @ApiOkResponse({ type: ArticleEntity })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.articlesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return new ArticleEntity(await this.articlesService.remove(id));
   }
 }
